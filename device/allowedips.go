@@ -12,8 +12,6 @@ import (
 	"math/bits"
 	"net"
 	"net/netip"
-	"sync"
-	"unsafe"
 )
 
 type parentIndirection struct {
@@ -26,6 +24,7 @@ type trieEntry struct {
 	child       [2]*trieEntry
 	parent      parentIndirection
 	cidr        uint8
+	proto       byte
 	bitAtByte   uint8
 	bitAtShift  uint8
 	bits        []byte
@@ -98,12 +97,13 @@ func (node *trieEntry) nodePlacement(ip []byte, cidr uint8) (parent *trieEntry, 
 	return
 }
 
-func (trie parentIndirection) insert(ip []byte, cidr uint8, peer *Peer) {
+func (trie parentIndirection) insert(proto byte, ip []byte, cidr uint8, peer *Peer) {
 	if *trie.parentBit == nil {
 		node := &trieEntry{
 			peer:       peer,
 			parent:     trie,
 			bits:       ip,
+			proto:      proto,
 			cidr:       cidr,
 			bitAtByte:  cidr / 8,
 			bitAtShift: 7 - (cidr % 8),
@@ -125,6 +125,7 @@ func (trie parentIndirection) insert(ip []byte, cidr uint8, peer *Peer) {
 		peer:       peer,
 		bits:       ip,
 		cidr:       cidr,
+		proto:      proto,
 		bitAtByte:  cidr / 8,
 		bitAtShift: 7 - (cidr % 8),
 	}
@@ -167,6 +168,7 @@ func (trie parentIndirection) insert(ip []byte, cidr uint8, peer *Peer) {
 	node = &trieEntry{
 		bits:       append([]byte{}, newNode.bits...),
 		cidr:       cidr,
+		proto:      proto,
 		bitAtByte:  cidr / 8,
 		bitAtShift: 7 - (cidr % 8),
 	}
@@ -205,84 +207,23 @@ func (node *trieEntry) lookup(ip []byte) *Peer {
 }
 
 type AllowedIPs struct {
-	IPv4  *trieEntry
-	IPv6  *trieEntry
-	mutex sync.RWMutex
+	IPv4 *trieEntry
+	IPv6 *trieEntry
 }
 
-func (table *AllowedIPs) EntriesForPeer(peer *Peer, cb func(prefix netip.Prefix) bool) {
-	table.mutex.RLock()
-	defer table.mutex.RUnlock()
-
-	for elem := peer.trieEntries.Front(); elem != nil; elem = elem.Next() {
-		node := elem.Value.(*trieEntry)
-		a, _ := netip.AddrFromSlice(node.bits)
-		if !cb(netip.PrefixFrom(a, int(node.cidr))) {
-			return
-		}
-	}
-}
-
-func (table *AllowedIPs) RemoveByPeer(peer *Peer) {
-	table.mutex.Lock()
-	defer table.mutex.Unlock()
-
-	var next *list.Element
-	for elem := peer.trieEntries.Front(); elem != nil; elem = next {
-		next = elem.Next()
-		node := elem.Value.(*trieEntry)
-
-		node.removeFromPeerEntries()
-		node.peer = nil
-		if node.child[0] != nil && node.child[1] != nil {
-			continue
-		}
-		bit := 0
-		if node.child[0] == nil {
-			bit = 1
-		}
-		child := node.child[bit]
-		if child != nil {
-			child.parent = node.parent
-		}
-		*node.parent.parentBit = child
-		if node.child[0] != nil || node.child[1] != nil || node.parent.parentBitType > 1 {
-			node.zeroizePointers()
-			continue
-		}
-		parent := (*trieEntry)(unsafe.Pointer(uintptr(unsafe.Pointer(node.parent.parentBit)) - unsafe.Offsetof(node.child) - unsafe.Sizeof(node.child[0])*uintptr(node.parent.parentBitType)))
-		if parent.peer != nil {
-			node.zeroizePointers()
-			continue
-		}
-		child = parent.child[node.parent.parentBitType^1]
-		if child != nil {
-			child.parent = parent.parent
-		}
-		*parent.parent.parentBit = child
-		node.zeroizePointers()
-		parent.zeroizePointers()
-	}
-}
-
-func (table *AllowedIPs) Insert(prefix netip.Prefix, peer *Peer) {
-	table.mutex.Lock()
-	defer table.mutex.Unlock()
-
+func (table *AllowedIPs) Insert(proto byte, prefix netip.Prefix, peer *Peer) {
 	if prefix.Addr().Is6() {
 		ip := prefix.Addr().As16()
-		parentIndirection{&table.IPv6, 2}.insert(ip[:], uint8(prefix.Bits()), peer)
+		parentIndirection{&table.IPv6, 2}.insert(proto, ip[:], uint8(prefix.Bits()), peer)
 	} else if prefix.Addr().Is4() {
 		ip := prefix.Addr().As4()
-		parentIndirection{&table.IPv4, 2}.insert(ip[:], uint8(prefix.Bits()), peer)
+		parentIndirection{&table.IPv4, 2}.insert(proto, ip[:], uint8(prefix.Bits()), peer)
 	} else {
 		panic(errors.New("inserting unknown address type"))
 	}
 }
 
 func (table *AllowedIPs) Lookup(ip []byte) *Peer {
-	table.mutex.RLock()
-	defer table.mutex.RUnlock()
 	switch len(ip) {
 	case net.IPv6len:
 		return table.IPv6.lookup(ip)

@@ -57,7 +57,7 @@ func benchmarkTrie(peerNumber, addressNumber, addressLength int, b *testing.B) {
 		rand.Read(addr[:])
 		cidr := uint8(rand.Uint32() % (AddressLength * 8))
 		index := rand.Int() % peerNumber
-		root.insert(addr[:], cidr, peers[index])
+		root.insert(AnyProto, addr[:], cidr, peers[index])
 	}
 
 	for n := 0; n < b.N; n++ {
@@ -95,21 +95,21 @@ func TestTrieIPv4(t *testing.T) {
 	g := &Peer{}
 	h := &Peer{}
 
-	var allowedIPs AllowedIPs
+	var allowedIPs AllowedProtos
 
 	insert := func(peer *Peer, a, b, c, d byte, cidr uint8) {
-		allowedIPs.Insert(netip.PrefixFrom(netip.AddrFrom4([4]byte{a, b, c, d}), int(cidr)), peer)
+		allowedIPs.Insert(AnyProto, netip.PrefixFrom(netip.AddrFrom4([4]byte{a, b, c, d}), int(cidr)), peer)
 	}
 
 	assertEQ := func(peer *Peer, a, b, c, d byte) {
-		p := allowedIPs.Lookup([]byte{a, b, c, d})
+		p := allowedIPs.Lookup(17, []byte{a, b, c, d})
 		if p != peer {
 			t.Error("Assert EQ failed")
 		}
 	}
 
 	assertNEQ := func(peer *Peer, a, b, c, d byte) {
-		p := allowedIPs.Lookup([]byte{a, b, c, d})
+		p := allowedIPs.Lookup(17, []byte{a, b, c, d})
 		if p == peer {
 			t.Error("Assert NEQ failed")
 		}
@@ -166,7 +166,7 @@ func TestTrieIPv4(t *testing.T) {
 	allowedIPs.RemoveByPeer(e)
 	allowedIPs.RemoveByPeer(g)
 	allowedIPs.RemoveByPeer(h)
-	if allowedIPs.IPv4 != nil || allowedIPs.IPv6 != nil {
+	if allowedIPs.Protos[AnyProto].IPv4 != nil || allowedIPs.Protos[AnyProto].IPv6 != nil {
 		t.Error("Expected removing all the peers to empty trie, but it did not")
 	}
 
@@ -191,7 +191,7 @@ func TestTrieIPv6(t *testing.T) {
 	g := &Peer{}
 	h := &Peer{}
 
-	var allowedIPs AllowedIPs
+	var allowedIPs AllowedProtos
 
 	expand := func(a uint32) []byte {
 		var out [4]byte
@@ -208,7 +208,7 @@ func TestTrieIPv6(t *testing.T) {
 		addr = append(addr, expand(b)...)
 		addr = append(addr, expand(c)...)
 		addr = append(addr, expand(d)...)
-		allowedIPs.Insert(netip.PrefixFrom(netip.AddrFrom16(*(*[16]byte)(addr)), int(cidr)), peer)
+		allowedIPs.Insert(AnyProto, netip.PrefixFrom(netip.AddrFrom16(*(*[16]byte)(addr)), int(cidr)), peer)
 	}
 
 	assertEQ := func(peer *Peer, a, b, c, d uint32) {
@@ -217,7 +217,7 @@ func TestTrieIPv6(t *testing.T) {
 		addr = append(addr, expand(b)...)
 		addr = append(addr, expand(c)...)
 		addr = append(addr, expand(d)...)
-		p := allowedIPs.Lookup(addr)
+		p := allowedIPs.Lookup(17, addr)
 		if p != peer {
 			t.Error("Assert EQ failed")
 		}

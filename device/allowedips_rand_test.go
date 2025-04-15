@@ -81,7 +81,7 @@ func (r SlowRouter) RemoveByPeer(peer *Peer) SlowRouter {
 func TestTrieRandom(t *testing.T) {
 	var slow4, slow6 SlowRouter
 	var peers []*Peer
-	var allowedIPs AllowedIPs
+	var allowedIPs AllowedProtos
 
 	rand.Seed(1)
 
@@ -94,14 +94,14 @@ func TestTrieRandom(t *testing.T) {
 		rand.Read(addr4[:])
 		cidr := uint8(rand.Intn(32) + 1)
 		index := rand.Intn(NumberOfPeers)
-		allowedIPs.Insert(netip.PrefixFrom(netip.AddrFrom4(addr4), int(cidr)), peers[index])
+		allowedIPs.Insert(AnyProto, netip.PrefixFrom(netip.AddrFrom4(addr4), int(cidr)), peers[index])
 		slow4 = slow4.Insert(addr4[:], cidr, peers[index])
 
 		var addr6 [16]byte
 		rand.Read(addr6[:])
 		cidr = uint8(rand.Intn(128) + 1)
 		index = rand.Intn(NumberOfPeers)
-		allowedIPs.Insert(netip.PrefixFrom(netip.AddrFrom16(addr6), int(cidr)), peers[index])
+		allowedIPs.Insert(AnyProto, netip.PrefixFrom(netip.AddrFrom16(addr6), int(cidr)), peers[index])
 		slow6 = slow6.Insert(addr6[:], cidr, peers[index])
 	}
 
@@ -111,7 +111,7 @@ func TestTrieRandom(t *testing.T) {
 			var addr4 [4]byte
 			rand.Read(addr4[:])
 			peer1 := slow4.Lookup(addr4[:])
-			peer2 := allowedIPs.Lookup(addr4[:])
+			peer2 := allowedIPs.Lookup(17, addr4[:])
 			if peer1 != peer2 {
 				t.Errorf("Trie did not match naive implementation, for %v: want %p, got %p", net.IP(addr4[:]), peer1, peer2)
 			}
@@ -119,7 +119,7 @@ func TestTrieRandom(t *testing.T) {
 			var addr6 [16]byte
 			rand.Read(addr6[:])
 			peer1 = slow6.Lookup(addr6[:])
-			peer2 = allowedIPs.Lookup(addr6[:])
+			peer2 = allowedIPs.Lookup(17, addr6[:])
 			if peer1 != peer2 {
 				t.Errorf("Trie did not match naive implementation, for %v: want %p, got %p", net.IP(addr6[:]), peer1, peer2)
 			}
@@ -135,7 +135,7 @@ func TestTrieRandom(t *testing.T) {
 		allowedIPs.RemoveByPeer(peers[p])
 	}
 
-	if allowedIPs.IPv4 != nil || allowedIPs.IPv6 != nil {
+	if allowedIPs.Protos[AnyProto].IPv4 != nil || allowedIPs.Protos[AnyProto].IPv6 != nil {
 		t.Error("Failed to remove all nodes from trie by peer")
 	}
 }
