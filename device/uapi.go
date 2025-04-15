@@ -119,9 +119,12 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 			sendf("tx_bytes=%d", peer.txBytes.Load())
 			sendf("rx_bytes=%d", peer.rxBytes.Load())
 			sendf("persistent_keepalive_interval=%d", peer.persistentKeepaliveInterval.Load())
-
-			device.allowedips.EntriesForPeer(peer, func(prefix netip.Prefix) bool {
-				sendf("allowed_ip=%s", prefix.String())
+			device.allowedProtos.EntriesForPeer(peer, func(proto byte, prefix netip.Prefix) bool {
+				if proto == AnyProto {
+					sendf("allowed_ip=%s", prefix.String())
+				} else {
+					sendf("allowed_ip=%s-%d", prefix.String(), proto)
+				}
 				return true
 			})
 		}
@@ -368,18 +371,34 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		if peer.dummy {
 			return nil
 		}
-		device.allowedips.RemoveByPeer(peer.Peer)
+		device.allowedProtos.RemoveByPeer(peer.Peer)
 
 	case "allowed_ip":
 		device.log.Verbosef("%v - UAPI: Adding allowedip", peer.Peer)
-		prefix, err := netip.ParsePrefix(value)
+		parts := strings.Split(value, "-")
+		proto := uint64(AnyProto)
+		var prefix netip.Prefix
+		var err error
+		switch len(parts) {
+		case 2:
+			proto, err = strconv.ParseUint(parts[1], 10, 8)
+			if err != nil {
+				break
+			}
+			fallthrough
+		case 1:
+			prefix, err = netip.ParsePrefix(parts[0])
+		default:
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip: failed to parse: %v", parts)
+		}
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip: %w", err)
 		}
 		if peer.dummy {
 			return nil
 		}
-		device.allowedips.Insert(prefix, peer.Peer)
+
+		device.allowedProtos.Insert(byte(proto), prefix, peer.Peer)
 
 	case "protocol_version":
 		if value != "1" {
