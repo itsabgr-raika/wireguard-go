@@ -119,14 +119,15 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 			sendf("tx_bytes=%d", peer.txBytes.Load())
 			sendf("rx_bytes=%d", peer.rxBytes.Load())
 			sendf("persistent_keepalive_interval=%d", peer.persistentKeepaliveInterval.Load())
-			device.allowedProtos.EntriesForPeer(peer, func(proto byte, prefix netip.Prefix) bool {
-				if proto == AnyProto {
-					sendf("allowed_ip=%s", prefix.String())
-				} else {
-					sendf("allowed_ip=%s@%d", prefix.String(), proto)
-				}
-				return true
-			})
+			sendf("allowed_ip=%s", "0.0.0.0/0")
+			//device.allowedProtos.EntriesForPeer(peer, func(proto byte, prefix netip.Prefix) bool {
+			//	if proto == AnyProto {
+			//		sendf("allowed_ip=%s", prefix.String())
+			//	} else {
+			//		sendf("allowed_ip=%s@%d", prefix.String(), proto)
+			//	}
+			//	return false
+			//})
 		}
 	}()
 
