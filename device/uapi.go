@@ -8,6 +8,7 @@ package device
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -428,8 +429,10 @@ func (device *Device) IpcSet(uapiConf string) error {
 	return device.IpcSetOperation(strings.NewReader(uapiConf))
 }
 
-func (device *Device) IpcSetFromURL(url string) error {
-	req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+func (device *Device) IpcSetFromURL(timeout time.Duration, url string) error {
+	timeoutCtx, cancelCtx := context.WithTimeout(context.Background(), timeout)
+	defer cancelCtx()
+	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return err
 	}
