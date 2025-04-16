@@ -382,7 +382,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		switch len(parts) {
 		case 2:
 			proto, err = strconv.ParseUint(parts[1], 10, 8)
-			if err == nil {
+			if err != nil {
 				break
 			}
 			fallthrough
