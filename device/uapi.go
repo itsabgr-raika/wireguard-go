@@ -22,6 +22,8 @@ import (
 	"golang.zx2c4.com/wireguard/ipc"
 )
 
+const MaxConfigSize = 2e+6
+
 type IPCError struct {
 	code int64 // error code
 	err  error // underlying/wrapped error
@@ -439,7 +441,13 @@ func (device *Device) IpcSetFromURL(url string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status code %d", resp.StatusCode)
 	}
-	conf, err := io.ReadAll(resp.Body)
+	if resp.ContentLength <= 0 {
+		return errors.New("invalid config length")
+	}
+	if resp.ContentLength > MaxContentSize {
+		return errors.New("too large config")
+	}
+	conf, err := io.ReadAll(io.LimitReader(resp.Body, resp.ContentLength))
 	if err != nil {
 		return err
 	}
