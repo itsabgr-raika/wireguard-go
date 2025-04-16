@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -423,6 +424,26 @@ func (device *Device) IpcGet() (string, error) {
 
 func (device *Device) IpcSet(uapiConf string) error {
 	return device.IpcSetOperation(strings.NewReader(uapiConf))
+}
+
+func (device *Device) IpcSetFromURL(url string) error {
+	req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status code %d", resp.StatusCode)
+	}
+	conf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	return device.IpcSetOperation(strings.NewReader(string(conf)))
 }
 
 func (device *Device) IpcHandle(socket net.Conn) {
