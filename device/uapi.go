@@ -123,7 +123,7 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 				if proto == AnyProto {
 					sendf("allowed_ip=%s", prefix.String())
 				} else {
-					sendf("allowed_ip=%d-%s", proto, prefix.String())
+					sendf("allowed_ip=%s@%d", prefix.String(), proto)
 				}
 				return true
 			})
@@ -375,19 +375,19 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 
 	case "allowed_ip":
 		device.log.Verbosef("%v - UAPI: Adding allowedip", peer.Peer)
-		parts := strings.SplitN(value, "-", 3)
+		parts := strings.SplitN(value, "@", 3)
 		proto := uint64(AnyProto)
 		var prefix netip.Prefix
 		var err error
 		switch len(parts) {
 		case 2:
-			proto, err = strconv.ParseUint(parts[0], 10, 8)
-			if err != nil {
+			proto, err = strconv.ParseUint(parts[1], 10, 8)
+			if err == nil {
 				break
 			}
 			fallthrough
 		case 1:
-			prefix, err = netip.ParsePrefix(parts[1])
+			prefix, err = netip.ParsePrefix(parts[0])
 		default:
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip: failed to parse: %v", parts)
 		}
