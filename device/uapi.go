@@ -433,7 +433,7 @@ func (device *Device) IpcSet(uapiConf string) error {
 func (device *Device) IpcSetFromURL(timeout time.Duration, url string) error {
 	timeoutCtx, cancelCtx := context.WithTimeout(context.Background(), timeout)
 	defer cancelCtx()
-	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, url, http.NoBody)
+	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodPost, url, http.NoBody)
 	if err != nil {
 		return err
 	}
