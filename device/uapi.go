@@ -431,6 +431,9 @@ func (device *Device) IpcSet(uapiConf string) error {
 }
 
 func (device *Device) IpcSetFromURL(timeout time.Duration, url string) error {
+	if len(url) <= 0 || len(url) > 1000 {
+		return errors.New("invalid url")
+	}
 	timeoutCtx, cancelCtx := context.WithTimeout(context.Background(), timeout)
 	defer cancelCtx()
 	req, err := http.NewRequestWithContext(timeoutCtx, http.MethodPost, url, http.NoBody)
