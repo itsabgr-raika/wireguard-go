@@ -445,6 +445,9 @@ func (device *Device) IpcSetFromURL(timeout time.Duration, url string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("status code %d", resp.StatusCode)
 	}
+	if resp.Header.Get("Content-Type") != "text/x-wireguard" {
+		return errors.New("invalid content-type")
+	}
 	if resp.ContentLength <= 0 {
 		return errors.New("invalid config length")
 	}
